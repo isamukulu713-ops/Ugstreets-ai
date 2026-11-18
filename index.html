@@ -33,44 +33,76 @@ textarea{flex:1;resize:none;border:1px solid var(--border);background:var(--bg);
 <button id="send" type="submit">Send</button>
 </form>
 <script>
-const log = document.getElementById("log"), t = document.getElementById("t"), send = document.getElementById("send");
-let history = [], busy = false;
-try { history = JSON.parse(localStorage.getItem("chat")) || []; } catch (e) {}
-const save = () => { try { localStorage.setItem("chat", JSON.stringify(history)); } catch (e) {} };
+const log = document.getElementById("log");
+const t = document.getElementById("t");
+const send = document.getElementById("send");
+let history = [];
+let busy = false;
 
-function add(role, text){
-  const h = document.getElementById("hint"); if (h) h.remove();
+try {
+  const saved = JSON.parse(localStorage.getItem("chat"));
+  if (Array.isArray(saved)) history = saved;
+} catch (e) {}
+
+function save() {
+  try { localStorage.setItem("chat", JSON.stringify(history.slice(-20))); } catch (e) {}
+}
+
+function add(role, text) {
+  const h = document.getElementById("hint");
+  if (h) h.remove();
   const d = document.createElement("div");
   d.className = "msg " + (role === "user" ? "user" : "ai");
-  d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+  d.textContent = text;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+  return d;
 }
-history.forEach(m => add(m.role, m.content));
 
-document.getElementById("clear").onclick = () => {
-  history = []; save();
+history.forEach(function (m) { add(m.role, m.content); });
+
+document.getElementById("clear").onclick = function () {
+  history = [];
+  save();
   log.innerHTML = '<div class="hint" id="hint">New chat started. Ask me anything.</div>';
 };
-t.addEventListener("input", () => { t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 120) + "px"; });
 
-document.getElementById("f").addEventListener("submit", async e => {
+t.addEventListener("input", function () {
+  t.style.height = "auto";
+  t.style.height = Math.min(t.scrollHeight, 120) + "px";
+});
+
+document.getElementById("f").addEventListener("submit", async function (e) {
   e.preventDefault();
-  const text = t.value.trim(); if (!text || busy) return;
-  busy = true; send.disabled = true; t.value = ""; t.style.height = "auto";
-  history.push({role: "user", content: text}); add("user", text);
+  const text = t.value.trim();
+  if (!text || busy) return;
+  busy = true;
+  send.disabled = true;
+  t.value = "";
+  t.style.height = "auto";
+  history.push({ role: "user", content: text });
+  add("user", text);
   const bubble = add("ai", "…");
   try {
     const r = await fetch("/.netlify/functions/chat", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({messages: history.slice(-12)});
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || "Something went wrong.");
-    bubble.textContent = data.reply;
-    history.push({role: "assistant", content: data.reply}); save();
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: history.slice(-12) })
+    });
+    let data = {};
+    try { data = await r.json(); } catch (x) {}
+    if (!r.ok) throw new Error(data.error || "Something went wrong (" + r.status + ").");
+    const reply = data.reply || "Sorry, I got an empty answer. Please try again.";
+    bubble.textContent = reply;
+    history.push({ role: "assistant", content: reply });
+    save();
   } catch (err) {
     history.pop();
     bubble.textContent = err.message || "Something went wrong. Please try again.";
   }
-  busy = false; send.disabled = false; t.focus();
+  busy = false;
+  send.disabled = false;
+  t.focus();
 });
 </script>
 </body>
