@@ -22,29 +22,40 @@ exports.handler = async (event) => {
     parts: [{ text: String(m.content).slice(0, 2000) }]
   }));
 
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents })
+  const models = [
+  process.env.GEMINI_MODEL || "gemini-3.8-flash",
+  "gemini-3.6-flash"
+];
+let lastStatus = 0;
+for (const model of models) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents })
+        }
+      );
+      lastStatus = r.status;
+      if (r.ok) {
+        const data = await r.json();
+        const text = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+        return res(200, null, { reply: text || "Sorry, I couldn’t answer that." });
       }
-    );
-    if (r.status === 429) return res(429, "The AI is busy right now. Try again in a minute.");
-    if (!r.ok) {
-  const err = await r.text();
-  return res(502, `AI error ${r.status}: ${err.slice(0, 300)}`);
-}
-    const data = await r.json();
-    const text = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
-    return res(200, null, { reply: text || "Sorry, I couldn’t answer that." });
-  } catch {
-    return res(502, "Could not reach the AI.");
+      if (r.status !== 503 && r.status !== 429) break;
+      await new Promise(ok => setTimeout(ok, 1000));
+    } catch {
+      lastStatus = 0;
+    }
   }
+}
+return res(lastStatus === 429 ? 429 : 502,
+  lastStatus === 429 ? "The AI is busy right now. Try again in a minute."
+                     : "The AI is busy or unavailable. Please try again soon.");
+    
 };
-
 function res(code, error, body) {
   return {
     statusCode: code,
