@@ -33,7 +33,10 @@ exports.handler = async (event) => {
       }
     );
     if (r.status === 429) return res(429, "The AI is busy right now. Try again in a minute.");
-    if (!r.ok) return res(502, "The AI had a problem. Try again.");
+    if (!r.ok) {
+  const err = await r.text();
+  return res(502, `AI error ${r.status}: ${err.slice(0, 300)}`);
+}
     const data = await r.json();
     const text = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
     return res(200, null, { reply: text || "Sorry, I couldn’t answer that." });
