@@ -2,7 +2,7 @@ const hits = new Map();
 const LIMIT = 20, WINDOW = 10 * 60 * 1000;
 const MAX_BODY = 64 * 1024, MAX_MSGS = 12;
 const MAX_CHARS = 2000, MAX_TOTAL = 12000;
-const REQ_TIMEOUT = 8000, DEADLINE = 9000;
+const REQ_TIMEOUT = 9000, DEADLINE = 9500;
 const DEBUG = true; // set to false once everything works
 const SYSTEM = "You are a friendly, helpful AI assistant. Keep answers clear and concise, in simple language. Reply in the same language the user writes in.";
 
@@ -36,9 +36,8 @@ exports.handler = async (event) => {
 
   const models = [...new Set([
     process.env.GEMINI_MODEL,
-    "gemini-flash-latest",
     "gemini-3.8-flash",
-    "gemini-3.6-flash"
+    "gemini-flash-latest"
   ].filter(Boolean))];
 
   const start = Date.now();
@@ -46,13 +45,17 @@ exports.handler = async (event) => {
   let lastStatus = 0;
 
   for (const model of models) {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    let useThinking = true;
+    for (let attempt = 0; attempt < 3; attempt++) {
       const remaining = DEADLINE - (Date.now() - start);
-      if (remaining < 600) break;
+      if (remaining < 800) break;
 
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), Math.min(REQ_TIMEOUT, remaining));
       try {
+        const generationConfig = { temperature: 0.7, topP: 0.95, maxOutputTokens: 2048 };
+        if (useThinking) generationConfig.thinkingConfig = { thinkingLevel: "low" };
+
         const r = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
           {
@@ -62,7 +65,7 @@ exports.handler = async (event) => {
             body: JSON.stringify({
               systemInstruction: { parts: [{ text: SYSTEM }] },
               contents,
-              generationConfig: { temperature: 0.7, topP: 0.95, maxOutputTokens: 2048 }
+              generationConfig
             })
           }
         );
@@ -84,13 +87,15 @@ exports.handler = async (event) => {
 
         const errText = (await r.text()).slice(0, 150).replace(/\s+/g, " ");
         tried.push(`${model} ${r.status}: ${errText}`);
-        if (r.status !== 503) break; // retry the same model only on 503
+
+        if (r.status === 400 && useThinking) { useThinking = false; continue; }
+        if (r.status !== 503) break;
         await sleep(500);
       } catch (e) {
         const timedOut = e.name === "AbortError";
         lastStatus = timedOut ? 504 : 0;
         tried.push(`${model} ${timedOut ? "timeout" : "network error"}`);
-        if (timedOut) break;
+        break;
       } finally {
         clearTimeout(timer);
       }
