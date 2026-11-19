@@ -3,36 +3,67 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#c96442">
+<meta name="theme-color" content="#212121">
 <title>My AI Assistant</title>
 <style>
-:root{--bg:#faf9f7;--surface:#fff;--text:#1f1e1d;--muted:#6b6a66;--accent:#c96442;--ai:#efece6;--border:#e3e0d8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
-@media (prefers-color-scheme:dark){:root{--bg:#1a1918;--surface:#262524;--text:#f0eee9;--muted:#9a978f;--ai:#2f2d2b;--border:#3a3835;color-scheme:dark}}
+:root{--bg:#ffffff;--text:#0d0d0d;--muted:#6e6e80;--user:#f4f4f4;--input:#f4f4f4;--border:#e5e5e5;--btn:#0d0d0d;--btn-text:#fff;--btn-off:#d0d0d0;--code:#f4f4f4;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#212121;--text:#ececec;--muted:#9b9b9b;--user:#2f2f2f;--input:#2f2f2f;--border:#3a3a3a;--btn:#ececec;--btn-text:#212121;--btn-off:#4a4a4a;--code:#171717;color-scheme:dark}}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Roboto,sans-serif;display:flex;flex-direction:column}
-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface)}
-h1{font-size:17px;margin:0}
-header button{background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 10px;font-size:13px}
-#log{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
-.msg{max-width:85%;padding:10px 14px;border-radius:16px;white-space:pre-wrap;word-wrap:break-word}
-.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
-.ai{align-self:flex-start;background:var(--ai);border-bottom-left-radius:4px}
-.hint{color:var(--muted);text-align:center;margin:auto;max-width:280px}
-form{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border);background:var(--surface)}
-textarea{flex:1;resize:none;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:20px;padding:10px 14px;font:inherit;max-height:120px}
-#send{background:var(--accent);color:#fff;border:0;border-radius:20px;padding:0 18px;font-weight:600}
-#send:disabled{opacity:.5}
+body{background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;height:100dvh;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
+header .title{font-size:17px;font-weight:600}
+.icon-btn{background:none;border:0;color:var(--text);width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center}
+.icon-btn:active{background:var(--user)}
+#scroll{flex:1;overflow-y:auto}
+#log{max-width:760px;margin:0 auto;padding:8px 16px 24px;display:flex;flex-direction:column;gap:22px}
+.row{display:flex}
+.row.user{justify-content:flex-end}
+.user .bubble{background:var(--user);padding:10px 16px;border-radius:20px;max-width:82%;white-space:pre-wrap;word-wrap:break-word}
+.ai .bubble{width:100%;word-wrap:break-word}
+.ai .bubble p{margin:0 0 12px}
+.ai .bubble p:last-child{margin-bottom:0}
+.ai .bubble h3{font-size:17px;margin:16px 0 8px}
+.ai .bubble ul,.ai .bubble ol{margin:0 0 12px;padding-left:22px}
+.ai .bubble li{margin:4px 0}
+.ai .bubble code{background:var(--code);padding:2px 6px;border-radius:6px;font-size:14px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.ai .bubble pre{background:var(--code);padding:12px 14px;border-radius:12px;overflow-x:auto;margin:0 0 12px}
+.ai .bubble pre code{padding:0;background:none}
+.dots{display:inline-flex;gap:5px;padding:8px 0}
+.dots span{width:8px;height:8px;border-radius:50%;background:var(--muted);animation:b 1.2s infinite ease-in-out}
+.dots span:nth-child(2){animation-delay:.15s}
+.dots span:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+#empty{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 24px}
+#empty h2{font-size:28px;font-weight:600;margin:0;padding-bottom:12vh}
+footer{max-width:760px;width:100%;margin:0 auto;padding:6px 12px 8px}
+form{display:flex;align-items:flex-end;gap:8px;background:var(--input);border-radius:26px;padding:8px 8px 8px 18px}
+textarea{flex:1;resize:none;border:0;outline:0;background:transparent;color:var(--text);font:inherit;max-height:140px;padding:6px 0;line-height:1.5}
+textarea::placeholder{color:var(--muted)}
+#send{flex:none;width:36px;height:36px;border-radius:50%;border:0;background:var(--btn);color:var(--btn-text);display:flex;align-items:center;justify-content:center}
+#send:disabled{background:var(--btn-off);color:var(--bg)}
+.note{text-align:center;color:var(--muted);font-size:12px;margin-top:8px}
 </style>
 </head>
 <body>
-<header><h1>My AI Assistant</h1><button id="clear" type="button">New chat</button></header>
-<div id="log"><div class="hint" id="hint">Hi! Ask me anything.</div></div>
-<form id="f">
-<textarea id="t" rows="1" placeholder="Type a message…"></textarea>
-<button id="send" type="submit">Send</button>
-</form>
+<header>
+  <div class="title">My AI Assistant</div>
+  <button class="icon-btn" id="clear" type="button" aria-label="New chat">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+  </button>
+</header>
+<div id="scroll"><div id="log"></div></div>
+<footer>
+  <form id="f">
+    <textarea id="t" rows="1" placeholder="Message"></textarea>
+    <button id="send" type="submit" aria-label="Send" disabled>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+    </button>
+  </form>
+  <div class="note">AI can make mistakes. Check important info.</div>
+</footer>
 <script>
+const scroller = document.getElementById("scroll");
 const log = document.getElementById("log");
 const t = document.getElementById("t");
 const send = document.getElementById("send");
@@ -48,28 +79,103 @@ function save() {
   try { localStorage.setItem("chat", JSON.stringify(history.slice(-20))); } catch (e) {}
 }
 
-function add(role, text) {
-  const h = document.getElementById("hint");
-  if (h) h.remove();
-  const d = document.createElement("div");
-  d.className = "msg " + (role === "user" ? "user" : "ai");
-  d.textContent = text;
-  log.appendChild(d);
-  log.scrollTop = log.scrollHeight;
-  return d;
+function esc(s) {
+  return s.replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+  });
 }
 
-history.forEach(function (m) { add(m.role, m.content); });
+function inline(s) {
+  s = esc(s);
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  return s;
+}
+
+function md(text) {
+  const parts = text.split("```");
+  let html = "";
+  parts.forEach(function (p, i) {
+    if (i % 2 === 1) {
+      const code = p.replace(/^[^\n]*\n/, "").replace(/\n$/, "");
+      html += "<pre><code>" + esc(code) + "</code></pre>";
+      return;
+    }
+    let list = null;
+    let para = [];
+    function flushPara() { if (para.length) { html += "<p>" + para.join("<br>") + "</p>"; para = []; } }
+    function flushList() { if (list) { html += "</" + list + ">"; list = null; } }
+    p.split("\n").forEach(function (line) {
+      let m;
+      if ((m = line.match(/^\s*[-*]\s+(.*)/))) {
+        flushPara();
+        if (list !== "ul") { flushList(); html += "<ul>"; list = "ul"; }
+        html += "<li>" + inline(m[1]) + "</li>";
+      } else if ((m = line.match(/^\s*\d+[.)]\s+(.*)/))) {
+        flushPara();
+        if (list !== "ol") { flushList(); html += "<ol>"; list = "ol"; }
+        html += "<li>" + inline(m[1]) + "</li>";
+      } else if ((m = line.match(/^#{1,6}\s+(.*)/))) {
+        flushPara(); flushList();
+        html += "<h3>" + inline(m[1]) + "</h3>";
+      } else if (!line.trim()) {
+        flushPara(); flushList();
+      } else {
+        flushList();
+        para.push(inline(line));
+      }
+    });
+    flushPara(); flushList();
+  });
+  return html;
+}
+
+function showEmpty() {
+  log.innerHTML = '<div id="empty"><h2>What can I help with?</h2></div>';
+}
+
+function add(role, text) {
+  const empty = document.getElementById("empty");
+  if (empty) empty.remove();
+  const row = document.createElement("div");
+  row.className = "row " + (role === "user" ? "user" : "ai");
+  const b = document.createElement("div");
+  b.className = "bubble";
+  if (role === "user") b.textContent = text;
+  else if (text === null) b.innerHTML = '<div class="dots"><span></span><span></span><span></span></div>';
+  else b.innerHTML = md(text);
+  row.appendChild(b);
+  log.appendChild(row);
+  scroller.scrollTop = scroller.scrollHeight;
+  return b;
+}
+
+function refreshSend() {
+  send.disabled = busy || !t.value.trim();
+}
+
+if (history.length) history.forEach(function (m) { add(m.role, m.content); });
+else showEmpty();
 
 document.getElementById("clear").onclick = function () {
+  if (busy) return;
   history = [];
   save();
-  log.innerHTML = '<div class="hint" id="hint">New chat started. Ask me anything.</div>';
+  showEmpty();
 };
 
 t.addEventListener("input", function () {
   t.style.height = "auto";
-  t.style.height = Math.min(t.scrollHeight, 120) + "px";
+  t.style.height = Math.min(t.scrollHeight, 140) + "px";
+  refreshSend();
+});
+
+t.addEventListener("keydown", function (e) {
+  const touch = "ontouchstart" in window;
+  if (e.key === "Enter" && !e.shiftKey && !touch) {
+    e.preventDefault();
+    document.getElementById("f").requestSubmit();
+  }
 });
 
 document.getElementById("f").addEventListener("submit", async function (e) {
@@ -77,12 +183,12 @@ document.getElementById("f").addEventListener("submit", async function (e) {
   const text = t.value.trim();
   if (!text || busy) return;
   busy = true;
-  send.disabled = true;
   t.value = "";
   t.style.height = "auto";
+  refreshSend();
   history.push({ role: "user", content: text });
   add("user", text);
-  const bubble = add("ai", "…");
+  const bubble = add("ai", null);
   try {
     const r = await fetch("/.netlify/functions/chat", {
       method: "POST",
@@ -93,7 +199,7 @@ document.getElementById("f").addEventListener("submit", async function (e) {
     try { data = await r.json(); } catch (x) {}
     if (!r.ok) throw new Error(data.error || "Something went wrong (" + r.status + ").");
     const reply = data.reply || "Sorry, I got an empty answer. Please try again.";
-    bubble.textContent = reply;
+    bubble.innerHTML = md(reply);
     history.push({ role: "assistant", content: reply });
     save();
   } catch (err) {
@@ -101,8 +207,8 @@ document.getElementById("f").addEventListener("submit", async function (e) {
     bubble.textContent = err.message || "Something went wrong. Please try again.";
   }
   busy = false;
-  send.disabled = false;
-  t.focus();
+  refreshSend();
+  scroller.scrollTop = scroller.scrollHeight;
 });
 </script>
 </body>
