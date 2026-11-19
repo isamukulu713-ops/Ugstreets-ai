@@ -36,8 +36,9 @@ exports.handler = async (event) => {
 
   const models = [...new Set([
     process.env.GEMINI_MODEL,
-    "gemini-3.8-flash",
-    "gemini-flash-latest"
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.8-flash"
   ].filter(Boolean))];
 
   const start = Date.now();
@@ -89,7 +90,7 @@ exports.handler = async (event) => {
         tried.push(`${model} ${r.status}: ${errText}`);
 
         if (r.status === 400 && useThinking) { useThinking = false; continue; }
-        if (r.status !== 503) break;
+        if (r.status !== 503) break; // 404/429/other: move on to the next model
         await sleep(500);
       } catch (e) {
         const timedOut = e.name === "AbortError";
@@ -120,35 +121,4 @@ function normalize(msgs) {
     if (!text) continue;
     const role = m.role === "assistant" ? "model" : "user";
     const prev = flat[flat.length - 1];
-    if (prev && prev.role === role) prev.parts[0].text += "\n\n" + text;
-    else flat.push({ role, parts: [{ text }] });
-  }
-  while (flat.length && flat[0].role === "model") flat.shift();
-
-  const out = [];
-  let total = 0;
-  for (let i = flat.length - 1; i >= 0; i--) {
-    total += flat[i].parts[0].text.length;
-    if (total > MAX_TOTAL) break;
-    out.unshift(flat[i]);
-  }
-  while (out.length && out[0].role === "model") out.shift();
-  return out;
-}
-
-function sweep(now) {
-  for (const [ip, arr] of hits) {
-    const kept = arr.filter(t => now - t < WINDOW);
-    if (kept.length) hits.set(ip, kept); else hits.delete(ip);
-  }
-}
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-function res(code, error, body) {
-  return {
-    statusCode: code,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-    body: JSON.stringify(body || { error })
-  };
-}
+    if (prev && prev.role === role) prev.parts[0].te
