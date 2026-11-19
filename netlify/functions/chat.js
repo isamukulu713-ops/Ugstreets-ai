@@ -2,14 +2,22 @@ const hits = new Map();
 const LIMIT = 20, WINDOW = 10 * 60 * 1000;
 const MAX_BODY = 64 * 1024, MAX_MSGS = 12;
 const MAX_CHARS = 2000, MAX_TOTAL = 12000;
-const REQ_TIMEOUT = 9000, DEADLINE = 9500;
+const REQ_TIMEOUT = 5000, DEADLINE = 8500;
 const DEBUG = true; // set to false once everything works
 const SYSTEM = "You are a friendly, helpful AI assistant. Keep answers clear and concise, in simple language. Reply in the same language the user writes in.";
 
 exports.handler = async (event) => {
+  try {
+    return await handle(event);
+  } catch (e) {
+    return res(500, DEBUG ? "Crash: " + String((e && e.message) || e).slice(0, 200) : "Something went wrong.");
+  }
+};
+
+async function handle(event) {
   if (event.httpMethod !== "POST") return res(405, "Method not allowed");
 
-  const key = process.env.GEMINI_API_KEY;
+  const key = process.env.GROQ_API_KEY;
   if (!key) return res(500, "Server is not set up yet.");
 
   const raw = event.isBase64Encoded
@@ -21,8 +29,8 @@ exports.handler = async (event) => {
   try { msgs = JSON.parse(raw).messages; } catch { return res(400, "Bad request"); }
   if (!Array.isArray(msgs) || !msgs.length) return res(400, "Bad request");
 
-  const contents = normalize(msgs);
-  if (!contents.length) return res(400, "No message content");
+  const chat = normalize(msgs);
+  if (!chat.length) return res(400, "No message content");
 
   const now = Date.now();
   if (hits.size > 5000) sweep(now);
@@ -35,10 +43,10 @@ exports.handler = async (event) => {
   hits.set(ip, recent);
 
   const models = [...new Set([
-    process.env.GEMINI_MODEL,
-    "gemini-3.5-flash-lite",
-    "gemini-3.1-flash-lite",
-    "gemini-3.8-flash"
+    process.env.AI_MODEL,
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "openai/gpt-oss-120b"
   ].filter(Boolean))];
 
   const start = Date.now();
@@ -46,41 +54,35 @@ exports.handler = async (event) => {
   let lastStatus = 0;
 
   for (const model of models) {
-    let useThinking = true;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       const remaining = DEADLINE - (Date.now() - start);
       if (remaining < 800) break;
 
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), Math.min(REQ_TIMEOUT, remaining));
       try {
-        const generationConfig = { temperature: 0.7, topP: 0.95, maxOutputTokens: 2048 };
-        if (useThinking) generationConfig.thinkingConfig = { thinkingLevel: "low" };
-
-        const r = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-          {
-            method: "POST",
-            signal: ctrl.signal,
-            headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: SYSTEM }] },
-              contents,
-              generationConfig
-            })
-          }
-        );
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          signal: ctrl.signal,
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + key
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: SYSTEM }, ...chat],
+            temperature: 0.7,
+            max_tokens: 1024
+          })
+        });
         lastStatus = r.status;
 
         if (r.ok) {
           const data = await r.json();
-          if (data.promptFeedback?.blockReason) {
-            return res(200, null, { reply: "That one got filtered out. Try rephrasing it." });
-          }
-          const c = data.candidates?.[0];
-          const text = (c?.content?.parts || []).map(p => p.text || "").join("").trim();
+          const choice = data.choices?.[0];
+          const text = (choice?.message?.content || "").trim();
           if (text) return res(200, null, { reply: text });
-          if (c?.finishReason === "MAX_TOKENS") {
+          if (choice?.finish_reason === "length") {
             return res(200, null, { reply: "That answer got cut off. Ask me to continue." });
           }
           return res(200, null, { reply: "Sorry, I couldn’t answer that." });
@@ -88,10 +90,8 @@ exports.handler = async (event) => {
 
         const errText = (await r.text()).slice(0, 150).replace(/\s+/g, " ");
         tried.push(`${model} ${r.status}: ${errText}`);
-
-        if (r.status === 400 && useThinking) { useThinking = false; continue; }
-        if (r.status !== 503) break; // 404/429/other: move on to the next model
-        await sleep(500);
+        if (r.status !== 503 && r.status !== 502) break; // other errors: try next model
+        await sleep(400);
       } catch (e) {
         const timedOut = e.name === "AbortError";
         lastStatus = timedOut ? 504 : 0;
@@ -111,7 +111,7 @@ exports.handler = async (event) => {
     busy ? 429 : lastStatus === 504 ? 504 : 502,
     DEBUG ? `${msg} [${tried.join(" | ")}]` : msg
   );
-};
+}
 
 function normalize(msgs) {
   const flat = [];
@@ -119,6 +119,37 @@ function normalize(msgs) {
     if (!m || typeof m.content !== "string") continue;
     const text = m.content.trim().slice(0, MAX_CHARS);
     if (!text) continue;
-    const role = m.role === "assistant" ? "model" : "user";
+    const role = m.role === "assistant" ? "assistant" : "user";
     const prev = flat[flat.length - 1];
-    if (prev && prev.role === role) prev.parts[0].te
+    if (prev && prev.role === role) prev.content += "\n\n" + text;
+    else flat.push({ role, content: text });
+  }
+  while (flat.length && flat[0].role === "assistant") flat.shift();
+
+  const out = [];
+  let total = 0;
+  for (let i = flat.length - 1; i >= 0; i--) {
+    total += flat[i].content.length;
+    if (total > MAX_TOTAL) break;
+    out.unshift(flat[i]);
+  }
+  while (out.length && out[0].role === "assistant") out.shift();
+  return out;
+}
+
+function sweep(now) {
+  for (const [ip, arr] of hits) {
+    const kept = arr.filter(t => now - t < WINDOW);
+    if (kept.length) hits.set(ip, kept); else hits.delete(ip);
+  }
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function res(code, error, body) {
+  return {
+    statusCode: code,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    body: JSON.stringify(body || { error })
+  };
+}
